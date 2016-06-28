@@ -27,7 +27,7 @@ exports.getUsersByNames = function (names, callback) {
  * @param {Function} callback 回调函数
  */
 exports.getUserByLoginName = function (loginName, callback) {
-  User.findOne({'loginname': loginName}, callback);
+  User.findOne({'loginname': new RegExp('^'+loginName+'$', "i")}, callback);
 };
 
 /**
@@ -39,6 +39,9 @@ exports.getUserByLoginName = function (loginName, callback) {
  * @param {Function} callback 回调函数
  */
 exports.getUserById = function (id, callback) {
+  if (!id) {
+    return callback();
+  }
   User.findOne({_id: id}, callback);
 };
 

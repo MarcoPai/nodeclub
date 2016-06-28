@@ -55,15 +55,20 @@ exports.index = function (req, res, next) {
 
     Reply.getRepliesByAuthorId(user._id, {limit: 20, sort: '-create_at'},
       proxy.done(function (replies) {
-        var topic_ids = [];
-        for (var i = 0; i < replies.length; i++) {
-          if (topic_ids.indexOf(replies[i].topic_id.toString()) < 0) {
-            topic_ids.push(replies[i].topic_id.toString());
-          }
-        }
+
+        var topic_ids = replies.map(function (reply) {
+          return reply.topic_id.toString()
+        })
+        topic_ids = _.uniq(topic_ids).slice(0, 5); //  只显示最近5条
+
         var query = {_id: {'$in': topic_ids}};
-        var opt = {limit: 5, sort: '-create_at'};
-        Topic.getTopicsByQuery(query, opt, proxy.done('recent_replies'));
+        var opt = {};
+        Topic.getTopicsByQuery(query, opt, proxy.done('recent_replies', function (recent_replies) {
+          recent_replies = _.sortBy(recent_replies, function (topic) {
+            return topic_ids.indexOf(topic._id.toString())
+          })
+          return recent_replies;
+        }));
       }));
   });
 };
@@ -118,13 +123,9 @@ exports.setting = function (req, res, next) {
   var action = req.body.action;
   if (action === 'change_setting') {
     var url = validator.trim(req.body.url);
-    url = validator.escape(url);
     var location = validator.trim(req.body.location);
-    location = validator.escape(location);
     var weibo = validator.trim(req.body.weibo);
-    weibo = validator.escape(weibo);
     var signature = validator.trim(req.body.signature);
-    signature = validator.escape(signature);
 
     User.getUserById(req.session.user._id, ep.done(function (user) {
       user.url = url;
@@ -189,13 +190,13 @@ exports.toggleStar = function (req, res, next) {
 
 exports.listCollectedTopics = function (req, res, next) {
   var name = req.params.name;
+  var page = Number(req.query.page) || 1;
+  var limit = config.list_topic_count;
+
   User.getUserByLoginName(name, function (err, user) {
     if (err || !user) {
       return next(err);
     }
-
-    var page = Number(req.query.page) || 1;
-    var limit = config.list_topic_count;
 
     var render = function (topics, pages) {
       res.render('user/collect_topics', {
@@ -209,18 +210,23 @@ exports.listCollectedTopics = function (req, res, next) {
     var proxy = EventProxy.create('topics', 'pages', render);
     proxy.fail(next);
 
-    TopicCollect.getTopicCollectsByUserId(user._id, proxy.done(function (docs) {
-      var ids = [];
-      for (var i = 0; i < docs.length; i++) {
-        ids.push(docs[i].topic_id);
-      }
+    var opt = {
+      skip: (page - 1) * limit,
+      limit: limit,
+    };
+
+    TopicCollect.getTopicCollectsByUserId(user._id, opt, proxy.done(function (docs) {
+      var ids = docs.map(function (doc) {
+        return String(doc.topic_id)
+      })
       var query = { _id: { '$in': ids } };
-      var opt = {
-        skip: (page - 1) * limit,
-        limit: limit,
-        sort: '-create_at'
-      };
-      Topic.getTopicsByQuery(query, opt, proxy.done('topics'));
+
+      Topic.getTopicsByQuery(query, {}, proxy.done('topics', function (topics) {
+        topics = _.sortBy(topics, function (topic) {
+          return ids.indexOf(String(topic._id))
+        })
+        return topics
+      }));
       Topic.getCountByQuery(query, proxy.done(function (all_topics_count) {
         var pages = Math.ceil(all_topics_count / limit);
         proxy.emit('pages', pages);
@@ -231,10 +237,7 @@ exports.listCollectedTopics = function (req, res, next) {
 
 exports.top100 = function (req, res, next) {
   var opt = {limit: 100, sort: '-score'};
-  User.getUsersByQuery({'$or': [
-    {is_block: {'$exists': false}},
-    {is_block: false},
-  ]}, opt, function (err, tops) {
+  User.getUsersByQuery({is_block: false}, opt, function (err, tops) {
     if (err) {
       return next(err);
     }
@@ -308,11 +311,17 @@ exports.listReplies = function (req, res, next) {
     Reply.getRepliesByAuthorId(user._id, opt, proxy.done(function (replies) {
       // 获取所有有评论的主题
       var topic_ids = replies.map(function (reply) {
-        return reply.topic_id;
+        return reply.topic_id.toString();
       });
       topic_ids = _.uniq(topic_ids);
+
       var query = {'_id': {'$in': topic_ids}};
-      Topic.getTopicsByQuery(query, {}, proxy.done('topics'));
+      Topic.getTopicsByQuery(query, {}, proxy.done('topics', function (topics) {
+        topics = _.sortBy(topics, function (topic) {
+          return topic_ids.indexOf(topic._id.toString())
+        })
+        return topics;
+      }));
     }));
 
     Reply.getCountByAuthorId(user._id, proxy.done('pages', function (count) {

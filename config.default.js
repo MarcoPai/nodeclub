@@ -64,7 +64,7 @@ var config = {
   // 邮箱配置
   mail_opts: {
     host: 'smtp.126.com',
-    port: 25,
+    port: 465,
     auth: {
       user: 'club@126.com',
       pass: 'club'
@@ -75,7 +75,7 @@ var config = {
   weibo_key: 10000000,
   weibo_id: 'your_weibo_id',
 
-  // admin 可删除话题，编辑标签，设某人为达人
+  // admin 可删除话题，编辑标签。把 user_login_name 换成你的登录名
   admins: { user_login_name: true },
 
   // github 登陆的配置
@@ -87,8 +87,8 @@ var config = {
   // 是否允许直接注册（否则只能走 github 的方式）
   allow_sign_up: true,
 
-  // newrelic 是个用来监控网站性能的服务
-  newrelic_key: 'yourkey',
+  // oneapm 是个用来监控网站性能的服务
+  oneapm_key: '',
 
   // 下面两个配置都是文件上传的配置
 
@@ -97,7 +97,10 @@ var config = {
     accessKey: 'your access key',
     secretKey: 'your secret key',
     bucket: 'your bucket name',
-    domain: 'http://your qiniu domain'
+    origin: 'http://your qiniu domain',
+    // 如果vps在国外，请使用 http://up.qiniug.com/ ，这是七牛的国际节点
+    // 如果在国内，此项请留空
+    uploadURL: 'http://xxxxxxxx',
   },
 
   // 文件上传配置
@@ -106,6 +109,8 @@ var config = {
     path: path.join(__dirname, 'public/upload/'),
     url: '/public/upload/'
   },
+
+  file_limit: '1MB',
 
   // 版块
   tabs: [
